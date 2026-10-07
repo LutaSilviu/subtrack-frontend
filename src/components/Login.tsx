@@ -23,6 +23,7 @@ export function Login({ onLogin, onGoToPlans }: LoginProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setError("");
 
     if (!email) {
@@ -30,12 +31,18 @@ export function Login({ onLogin, onGoToPlans }: LoginProps) {
       return;
     }
 
-    setIsLoading(true);
-    const result = await onLogin(email);
-    setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const result = await onLogin(email);
 
-    if (!result.success) {
-      setError(result.error || "Invalid email");
+      if (!result.success) {
+        setError(result.error || "Invalid email");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      setError(error.message || "An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
     }
   };
 

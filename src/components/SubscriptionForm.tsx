@@ -14,7 +14,7 @@ import type { Subscription, UserData } from "../App";
 
 interface SubscriptionFormProps {
   subscription: Subscription;
-  onSubmit: (data: UserData) => void;
+  onSubmit: (data: UserData) => Promise<{ success: boolean; error?: string }>;
   onBack: () => void;
   existingUser?: UserData;
 }
@@ -34,10 +34,37 @@ export function SubscriptionForm({
       dateOfBirth: "",
     }
   );
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    e.stopPropagation();
+    setError("");
+
+    // Validate phone number (must be exactly 10 digits)
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setError("Phone number must contain exactly 10 digits");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await onSubmit({
+        ...formData,
+        phone: phoneDigits, // Send only digits
+      });
+
+      if (!result.success) {
+        setError(result.error || "Failed to create subscription");
+      }
+    } catch (err: any) {
+      console.error("Form submission error:", err);
+      setError(err.message || "An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (field: keyof UserData, value: string) => {
@@ -186,16 +213,26 @@ export function SubscriptionForm({
                       />
                     </div>
 
+                    {error && (
+                      <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                        {error}
+                      </div>
+                    )}
+
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={!isFormValid}
+                      disabled={!isFormValid || isLoading}
                       style={{
-                        backgroundColor: isFormValid ? "#00bfa5" : undefined,
-                        color: isFormValid ? "#ffffff" : undefined,
+                        backgroundColor:
+                          isFormValid && !isLoading ? "#00bfa5" : undefined,
+                        color:
+                          isFormValid && !isLoading ? "#ffffff" : undefined,
                       }}
                     >
-                      Complete Subscription
+                      {isLoading
+                        ? "Creating Subscription..."
+                        : "Complete Subscription"}
                     </Button>
                   </form>
                 </CardContent>

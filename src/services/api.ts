@@ -204,10 +204,13 @@ const mapPlanToSubscription = (plan: PlanResponse): Subscription => ({
 export const plansApi = {
   // GET /plans - Get all plans
   getAll: async (): Promise<Subscription[]> => {
+    console.log('=== Get All Plans ===');
+    console.log('Endpoint: GET /plans');
     const response = await apiClient.get<PlanResponse[]>('/plans');
+    console.log('=== Plans Response ===');
+    console.log('Status:', response.status);
+    console.log('Response Data:', response.data);
     return response.data.map(mapPlanToSubscription);
-    console.log('TODO: Fetch all plans from database');
-    return [];
   },
 
   // GET /plans/view - View plans (Thymeleaf view)

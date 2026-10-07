@@ -7,6 +7,7 @@ import { UserDashboard } from "./components/UserDashboard";
 import {
   authApi,
   subscriptionApi,
+  plansApi,
   type BackendUser,
   type UserSubscription,
 } from "./services/api";
@@ -48,50 +49,6 @@ export interface UserAccount {
   dataUsed: number;
 }
 
-const availableSubscriptions: Subscription[] = [
-  {
-    id: 1,
-    name: "Basic",
-    price: 9.99,
-    data: 5,
-    features: ["5 GB data", "Standard speed", "Email support"],
-  },
-  {
-    id: 2,
-    name: "Standard",
-    price: 19.99,
-    data: 15,
-    features: ["15 GB data", "High speed", "Priority support", "Free roaming"],
-    popular: true,
-  },
-  {
-    id: 3,
-    name: "Premium",
-    price: 29.99,
-    data: 30,
-    features: [
-      "30 GB data",
-      "Ultra-fast speed",
-      "24/7 support",
-      "Free roaming",
-      "Unlimited calls",
-    ],
-  },
-  {
-    id: 4,
-    name: "Unlimited",
-    price: 49.99,
-    data: 0,
-    features: [
-      "Unlimited data",
-      "Ultra-fast speed",
-      "24/7 VIP support",
-      "Global roaming",
-      "Unlimited calls & SMS",
-    ],
-  },
-];
-
 export default function App() {
   const [step, setStep] = useState<
     "login" | "select" | "form" | "success" | "dashboard"
@@ -104,26 +61,39 @@ export default function App() {
   const [userSubscriptions, setUserSubscriptions] = useState<
     UserSubscription[]
   >([]);
+  const [plans, setPlans] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const subscriptions = availableSubscriptions;
   const isLoggedIn = !!currentUser;
 
   useEffect(() => {
-    // Load user from localStorage on mount
-    const storedUser = localStorage.getItem("currentUser");
-    if (storedUser) {
+    const loadInitialData = async () => {
       try {
-        const user = JSON.parse(storedUser) as BackendUser;
-        setCurrentUser(user);
-        loadUserSubscriptions(user.userId);
-        setStep("dashboard");
+        // Fetch plans from database
+        const fetchedPlans = await plansApi.getAll();
+        setPlans(fetchedPlans);
+
+        // Load user from localStorage
+        const storedUser = localStorage.getItem("currentUser");
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser) as BackendUser;
+            setCurrentUser(user);
+            await loadUserSubscriptions(user.userId);
+            setStep("dashboard");
+          } catch (error) {
+            console.error("Failed to parse stored user:", error);
+            localStorage.removeItem("currentUser");
+          }
+        }
       } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem("currentUser");
+        console.error("Failed to load initial data:", error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    loadInitialData();
   }, []);
 
   const loadUserSubscriptions = async (userId: number) => {
@@ -184,8 +154,12 @@ export default function App() {
     setStep("form");
   };
 
-  const handleSubmitForm = async (data: UserData) => {
-    if (!selectedSubscription) return;
+  const handleSubmitForm = async (
+    data: UserData
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!selectedSubscription) {
+      return { success: false, error: "No subscription selected" };
+    }
 
     console.log("=== Creating Subscription ===");
     console.log("Selected Plan ID:", selectedSubscription.id);
@@ -200,20 +174,35 @@ export default function App() {
       console.log("Subscription created successfully:", result);
 
       setStep("login");
+      return { success: true };
     } catch (err) {
       const error = err as any;
+      console.error("Failed to create subscription:", error);
+
       if (error?.response?.status === 409) {
-        alert("A user with this email already exists. Please log in.");
         setStep("login");
-        return;
+        return {
+          success: false,
+          error: "A user with this email already exists. Please log in.",
+        };
       }
 
-      console.error("Failed to create subscription:", error);
-      console.error(
-        "Error details:",
-        error instanceof Error ? error.message : "Unknown error"
-      );
-      alert("Failed to create subscription. Please try again.");
+      if (error?.response?.status === 400) {
+        const errorMessage =
+          error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          "Invalid data. Please check your inputs.";
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      return {
+        success: false,
+        error:
+          error?.message || "Failed to create subscription. Please try again.",
+      };
     }
   };
 
@@ -262,7 +251,7 @@ export default function App() {
       )}
       {step === "select" && (
         <SubscriptionList
-          subscriptions={subscriptions}
+          subscriptions={plans}
           onSelect={handleSelectSubscription}
           isLoggedIn={isLoggedIn}
           onLogout={handleLogout}
@@ -312,7 +301,7 @@ export default function App() {
               address: currentUser.address,
               dateOfBirth: currentUser.dateOfBirth,
             },
-            subscription: selectedSubscription || subscriptions[0],
+            subscription: selectedSubscription || plans[0],
             startDate: new Date().toISOString(),
             dataUsed: 0,
           }}

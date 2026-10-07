@@ -31,6 +31,9 @@ export function SubscriptionList({
   onLogout,
   onGoToDashboard,
 }: SubscriptionListProps) {
+  // Sort subscriptions by price (ascending)
+  const sortedSubscriptions = [...subscriptions].sort((a, b) => a.price - b.price);
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -90,7 +93,7 @@ export function SubscriptionList({
       <main className="px-4 py-12 md:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {subscriptions.map((subscription) => (
+            {sortedSubscriptions.map((subscription) => (
               <Card
                 key={subscription.id}
                 className="shadow-sm relative flex flex-col"
